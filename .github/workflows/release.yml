@@ -1,0 +1,62 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build Windows amd64
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ioc-monitor-windows-amd64.exe main.go
+
+      - name: Build Windows arm64
+        run: |
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags="-s -w" -o ioc-monitor-windows-arm64.exe main.go
+
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## IOC Network Connection Monitor ${{ steps.version.outputs.VERSION }}
+            
+            ### 下载说明
+            - `ioc-monitor-windows-amd64.exe` - Windows 64位 (Intel/AMD)
+            - `ioc-monitor-windows-arm64.exe` - Windows ARM64
+            
+            ### 使用方法
+            1. 下载对应版本的 exe 文件
+            2. 右键以管理员身份运行
+            3. 按提示输入 IOC 或选择 IOC 文件
+          files: |
+            ioc-monitor-windows-amd64.exe
+            ioc-monitor-windows-arm64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            ioc-monitor-windows-amd64.exe
+            ioc-monitor-windows-arm64.exe
